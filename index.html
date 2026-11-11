@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fracciones sin Miedo - Presentación Interactiva</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --background: #f1f5f9;
+      --content: #f8fafc;
+      --card: #ffffff;
+      --foreground: #0f172a;
+      --muted-foreground: #475569;
+      --border: #cbd5e1;
+      --primary: #f59e0b;
+      --primary-foreground: #ffffff;
+    }
+    html.dark {
+      --background: #0f172a;
+      --content: #1e293b;
+      --card: #0b1220;
+      --foreground: #f8fafc;
+      --muted-foreground: #94a3b8;
+      --border: #334155;
+      --primary: #f59e0b;
+      --primary-foreground: #0f172a;
+    }
+    body {
+      background-color: var(--background);
+      color: var(--foreground);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+    .frac {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      vertical-align: middle;
+      line-height: 1.05;
+      margin: 0 3px;
+      font-weight: 700;
+    }
+    .frac-top {
+      border-bottom: 2px solid currentColor;
+      padding: 0 5px 2px 5px;
+    }
+    .frac-bot {
+      padding: 2px 5px 0 5px;
+    }
+    .slide-fade {
+      animation: fadeSlide 0.22s ease-out;
+    }
+    @keyframes fadeSlide {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 antialiased">
+  <div class="w-full max-w-3xl mx-auto bg-[var(--card)] text-[var(--foreground)] border border-[var(--border)] rounded-2xl shadow-lg overflow-hidden">
+    <!-- Top Progress & Header -->
+    <div class="px-5 py-3 border-b border-[var(--border)] bg-[var(--content)] flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-amber-500/15 text-amber-500 font-bold text-base shrink-0">🍕</span>
+        <div class="truncate">
+          <div id="slide-category" class="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">Diapositiva 1 de 12</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-1.5" id="slide-dots"></div>
+        <button onclick="toggleTheme()" id="theme-btn" title="Cambiar tema claro/oscuro" class="px-2.5 py-1 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs font-semibold hover:opacity-80 cursor-pointer">
+          🌙
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Slide Stage -->
+    <div id="slide-stage" class="p-5 sm:p-6 min-h-[370px] flex flex-col justify-center slide-fade"></div>
+
+    <!-- Bottom Navigation -->
+    <div class="px-5 py-3 border-t border-[var(--border)] bg-[var(--content)] flex items-center justify-between gap-2">
+      <button id="btn-prev" onclick="changeSlide(-1)" class="px-3.5 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs font-semibold hover:opacity-80 disabled:opacity-35 transition cursor-pointer">
+        ← Anterior
+      </button>
+      <span id="slide-hint" class="text-xs text-[var(--muted-foreground)] hidden sm:inline">Usa ← y → o haz clic en los elementos interactivos</span>
+      <button id="btn-next" onclick="changeSlide(1)" class="px-4 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-xs font-semibold hover:opacity-90 disabled:opacity-35 transition cursor-pointer">
+        Siguiente →
+      </button>
+    </div>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+
+    // Interactive state
+    let pizzaSlices = 3;
+    let chocoState = [true, true, true, false, false];
+    let equivMultiplier = 1;
+    let opTab = 'homo';
+    let fracNumTarget = 20;
+    let fracNumTop = 2;
+    let fracNumBot = 5;
+    let problemStep = 0;
+    let quizAnswers = {};
+
+    function toggleTheme() {
+      const root = document.documentElement;
+      const isDark = root.classList.toggle('dark');
+      document.getElementById('theme-btn').textContent = isDark ? '☀️' : '🌙';
+    }
+
+    function fracHTML(top, bot, sizeClass = 'text-base') {
+      return `<span class="frac ${sizeClass}"><span class="frac-top">${top}</span><span class="frac-bot">${bot}</span></span>`;
+    }
+
+    function pizzaSVG(taken, total = 8, size = 132) {
+      const cx = size / 2;
+      const cy = size / 2;
+      const r = size * 0.43;
+      let paths = '';
+      for (let i = 0; i < total; i++) {
+        const startAngle = (i * 2 * Math.PI) / total - Math.PI / 2;
+        const endAngle = ((i + 1) * 2 * Math.PI) / total - Math.PI / 2;
+        const x1 = cx + r * Math.cos(startAngle);
+        const y1 = cy + r * Math.sin(startAngle);
+        const x2 = cx + r * Math.cos(endAngle);
+        const y2 = cy + r * Math.sin(endAngle);
+        const largeArc = (endAngle - startAngle) > Math.PI ? 1 : 0;
+        const isTaken = i < taken;
+        const fill = isTaken ? '#f59e0b' : 'rgba(148,163,184,0.22)';
+        const stroke = 'var(--card)';
+        paths += `<path d="M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z" fill="${fill}" stroke="${stroke}" stroke-width="2.5" />`;
+        if (isTaken) {
+          const mid = (startAngle + endAngle) / 2;
+          const px = cx + r * 0.56 * Math.cos(mid);
+          const py = cy + r * 0.56 * Math.sin(mid);
+          paths += `<circle cx="${px}" cy="${py}" r="${size * 0.045}" fill="#dc2626" opacity="0.85" />`;
+        }
+      }
+      return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="shrink-0">
+        <circle cx="${cx}" cy="${cy}" r="${r + 4}" fill="none" stroke="#d97706" stroke-width="3" opacity="0.45"/>
+        ${paths}
+      </svg>`;
+    }
+
+    function pieSVG(taken, total, color = '#10b981', size = 64) {
+      const cx = size / 2, cy = size / 2, r = size * 0.42;
+      let paths = '';
+      for (let i = 0; i < total; i++) {
+        const a1 = (i * 2 * Math.PI) / total - Math.PI / 2;
+        const a2 = ((i + 1) * 2 * Math.PI) / total - Math.PI / 2;
+        const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+        const x2 = cx + r * Math.cos(a2), y2 = cy + r * Math.sin(a2);
+        const largeArc = (a2 - a1) > Math.PI ? 1 : 0;
+        const fill = i < taken ? color : 'rgba(148,163,184,0.22)';
+        paths += `<path d="M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z" fill="${fill}" stroke="var(--card)" stroke-width="2" />`;
+      }
+      return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${paths}</svg>`;
+    }
+
+    const slides = [
+      {
+        category: 'Bienvenida • 1 / 12',
+        render: () => `
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+            <div class="md:col-span-7 space-y-3">
+              <span class="inline-block px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-600 font-bold text-xs">Guía Visual Paso a Paso</span>
+              <h1 class="text-2xl sm:text-3xl font-extrabold leading-tight">Fracciones sin miedo 🍕</h1>
+              <p class="text-sm text-[var(--muted-foreground)] leading-relaxed">
+                Olvídate de memorizar reglas raras. Aquí vas a entender las fracciones como <strong>pizza, chocolate y trucos visuales</strong> fáciles de recordar.
+              </p>
+              <div class="flex flex-wrap gap-2 pt-1">
+                <span class="px-2.5 py-1 rounded-lg bg-[var(--content)] border border-[var(--border)] text-xs font-medium">🍕 Qué son y tipos</span>
+                <span class="px-2.5 py-1 rounded-lg bg-[var(--content)] border border-[var(--border)] text-xs font-medium">😊 Sumas y cruces</span>
+                <span class="px-2.5 py-1 rounded-lg bg-[var(--content)] border border-[var(--border)] text-xs font-medium">🔄 Decimales y problemas</span>
+              </div>
+            </div>
+            <div class="md:col-span-5 bg-[var(--content)] border border-[var(--border)] rounded-xl p-4 flex flex-col items-center text-center gap-2">
+              <div class="text-xs font-semibold text-[var(--muted-foreground)]">¡Prueba mover el control!</div>
+              <div class="flex items-center gap-4">
+                ${pizzaSVG(pizzaSlices, 8, 124)}
+                <div class="text-3xl font-extrabold text-amber-500">${fracHTML(pizzaSlices, 8, 'text-3xl')}</div>
+              </div>
+              <input type="range" min="1" max="8" value="${pizzaSlices}" oninput="pizzaSlices = Number(this.value); renderSlide();" class="w-full accent-amber-500 cursor-pointer" />
+              <div class="text-xs text-[var(--muted-foreground)]">Comiste <strong>${pizzaSlices}</strong> de <strong>8</strong> rebanadas iguales</div>
+            </div>
+          </div>
+        `
+      },
+      {
+        category: 'Concepto Base • 2 / 12',
+        render: () => {
+          const count = chocoState.filter(Boolean).length;
+          return `
+            <div class="space-y-3">
+              <div>
+                <h2 class="text-xl font-bold">1. ¿Qué es una fracción?</h2>
+                <p class="text-sm text-[var(--muted-foreground)]">Es una <strong>parte de algo completo</strong> dividido en pedazos exactamente iguales.</p>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">
+                <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-3.5 flex items-center gap-4">
+                  <div class="text-4xl font-black text-sky-500 shrink-0 px-2">
+                    ${fracHTML(`<span class="text-emerald-500">${count}</span>`, `<span class="text-sky-500">5</span>`, 'text-4xl')}
+                  </div>
+                  <div class="space-y-2 text-xs">
+                    <div class="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25">
+                      <div class="font-bold text-emerald-600">▲ Numerador (arriba)</div>
+                      <div class="text-[var(--muted-foreground)]"><strong>N</strong>úmero de pedazos que tomas.</div>
+                    </div>
+                    <div class="p-2 rounded-lg bg-sky-500/10 border border-sky-500/25">
+                      <div class="font-bold text-sky-600">▼ Denominador (abajo)</div>
+                      <div class="text-[var(--muted-foreground)]"><strong>D</strong>ebajo y <strong>D</strong>ivide: total de pedazos iguales.</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-3.5 flex flex-col justify-between gap-2">
+                  <div class="text-xs font-semibold">🍫 Barra de chocolate interactiva (haz clic en los cuadros):</div>
+                  <div class="grid grid-cols-5 gap-1.5 py-2">
+                    ${chocoState.map((on, idx) => `
+                      <button onclick="chocoState[${idx}] = !chocoState[${idx}]; renderSlide();"
+                        class="h-12 rounded-lg border-2 font-bold text-xs transition cursor-pointer ${on ? 'bg-amber-700 text-amber-100 border-amber-500 shadow-sm' : 'bg-[var(--card)] text-[var(--muted-foreground)] border-[var(--border)]'}">
+                        ${on ? '🍫' : '⬜'}
+                      </button>
+                    `).join('')}
+                  </div>
+                  <div class="text-xs text-[var(--muted-foreground)] text-center">
+                    Tomaste <strong>${count}</strong> cuadritos de <strong>5</strong> posibles = ${fracHTML(count, 5, 'text-sm')}
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+      },
+      {
+        category: 'Tipos de Fracciones • 3 / 12',
+        render: () => `
+          <div class="space-y-3">
+            <div>
+              <h2 class="text-xl font-bold">2. La familia de las fracciones</h2>
+              <p class="text-sm text-[var(--muted-foreground)]">Se clasifican según el tamaño de sus pedazos o si completan un entero.</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-3.5 space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-sm text-emerald-600">👯 Homogéneas ("hermanas")</span>
+                  <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 font-semibold">Mismo abajo</span>
+                </div>
+                <div class="flex items-center gap-3 py-1">
+                  ${pieSVG(1, 4, '#10b981', 54)}
+                  ${fracHTML(1, 4, 'text-lg')}
+                  <span class="text-xs text-[var(--muted-foreground)]">y</span>
+                  ${pieSVG(3, 4, '#10b981', 54)}
+                  ${fracHTML(3, 4, 'text-lg')}
+                </div>
+                <p class="text-xs text-[var(--muted-foreground)]">Sus pedazos son del <strong>mismo tamaño</strong> (ambas partidas en 4).</p>
+              </div>
+              <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-3.5 space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-sm text-violet-600">🎨 Heterogéneas ("distintas")</span>
+                  <span class="text-xs px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-600 font-semibold">Distinto abajo</span>
+                </div>
+                <div class="flex items-center gap-3 py-1">
+                  ${pieSVG(1, 2, '#8b5cf6', 54)}
+                  ${fracHTML(1, 2, 'text-lg')}
+                  <span class="text-xs text-[var(--muted-foreground)]">y</span>
+                  ${pieSVG(1, 3, '#8b5cf6', 54)}
+                  ${fracHTML(1, 3, 'text-lg')}
+                </div>
+                <p class="text-xs text-[var(--muted-foreground)]">Tienen pedazos de <strong>diferente tamaño</strong> (mitades vs. tercios).</p>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-2">
+                <div class="text-xs"><strong class="text-sky-600">Propia:</strong> Arriba más chico (&lt; 1 entero).</div>
+                <div class="shrink-0 font-bold text-sky-500">${fracHTML(2, 5, 'text-base')}</div>
+              </div>
+              <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-2">
+                <div class="text-xs"><strong class="text-amber-600">Impropia:</strong> Arriba más grande o igual (&ge; 1 entero).</div>
+                <div class="shrink-0 font-bold text-amber-500">${fracHTML(5, 4, 'text-base')}</div>
+              </div>
+            </div>
+          </div>
+        `
+      },
+      {
+        category: 'Equivalentes • 4 / 12',
+        render: () => {
+          const top = 1 * equivMultiplier;
+          const bot = 2 * equivMultiplier;
+          return `
+            <div class="space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 class="text-xl font-bold">3. Fracciones equivalentes 🎭</h2>
+                  <p class="text-sm text-[var(--muted-foreground)]">Se escriben distinto, ¡pero valen exactamente la misma cantidad!</p>
+                </div>
+                <div class="flex gap-1.5">
+                  ${[1, 2, 3, 4].map(m => `
+                    <button onclick="equivMultiplier = ${m}; renderSlide();"
+                      class="px-2.5 py-1 rounded-lg text-xs font-bold border transition cursor-pointer ${equivMultiplier === m ? 'bg-amber-500 text-white border-amber-500' : 'bg-[var(--content)] border-[var(--border)]'}">
+                      ×${m}
+                    </button>
+                  `).join('')}
+                </div>
+              </div>
+
+              <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+                <div class="flex items-center justify-between gap-4">
+                  <div class="flex items-center gap-3">
+                    ${pieSVG(1, 2, '#f59e0b', 68)}
+                    <span class="text-lg font-bold">${fracHTML(1, 2, 'text-xl')}</span>
+                  </div>
+                  <span class="text-2xl font-black text-emerald-500">=</span>
+                  <div class="flex items-center gap-3">
+                    ${pieSVG(top, bot, '#10b981', 68)}
+                    <span class="text-lg font-bold text-emerald-500">${fracHTML(top, bot, 'text-xl')}</span>
+                  </div>
+                </div>
+                <div class="w-full h-7 rounded-lg overflow-hidden border border-[var(--border)] grid" style="grid-template-columns: repeat(${bot}, minmax(0, 1fr))">
+                  ${Array.from({length: bot}).map((_, i) => `
+                    <div class="border-r last:border-r-0 border-[var(--card)] ${i < top ? 'bg-emerald-500' : 'bg-slate-400/20'}"></div>
+                  `).join('')}
+                </div>
+              </div>
+
+              <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs">
+                <strong>💡 Regla de oro:</strong> Lo que le haces al de arriba, se lo haces al de abajo. Multiplicas ambos por <strong>${equivMultiplier}</strong> (amplificar) o divides ambos entre el mismo número (simplificar).
+              </div>
+            </div>
+          `;
+        }
+      },
+      {
+        category: 'Mixtas e Impropias • 5 / 12',
+        render: () => `
+          <div class="space-y-3">
+            <div>
+              <h2 class="text-xl font-bold">4. Fracciones mixtas 🍫</h2>
+              <p class="text-sm text-[var(--muted-foreground)]">Combinan <strong>enteros completos</strong> con una fracción sobrante.</p>
+            </div>
+            <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center gap-2 text-2xl font-black text-amber-500">
+                <span>2</span>${fracHTML(1, 3, 'text-xl')}
+              </div>
+              <div class="flex items-center gap-2">
+                ${pieSVG(3, 3, '#f59e0b', 50)}
+                ${pieSVG(3, 3, '#f59e0b', 50)}
+                <span class="font-bold">+</span>
+                ${pieSVG(1, 3, '#10b981', 50)}
+              </div>
+              <div class="text-xs text-[var(--muted-foreground)]">2 enteros y un tercio</div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-3 space-y-1.5">
+                <div class="font-bold text-sky-600 text-sm">🔄 De Mixta a Impropia (Truco del círculo)</div>
+                <p class="text-[var(--muted-foreground)]">Para convertir <strong>2</strong>${fracHTML(1, 3, 'text-xs')}:</p>
+                <ol class="list-decimal pl-4 space-y-1">
+                  <li>Multiplica abajo × grande: <strong>3 × 2 = 6</strong></li>
+                  <li>Suma el de arriba: <strong>6 + 1 = 7</strong></li>
+                  <li>Deja el 3 abajo: <strong>${fracHTML(7, 3, 'text-xs')}</strong></li>
+                </ol>
+              </div>
+              <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-3 space-y-1.5">
+                <div class="font-bold text-emerald-600 text-sm">✂️ De Impropia a Mixta (Repartir)</div>
+                <p class="text-[var(--muted-foreground)]">Para convertir ${fracHTML(7, 3, 'text-xs')}:</p>
+                <ol class="list-decimal pl-4 space-y-1">
+                  <li>¿Cuántas veces cabe el 3 en el 7? <strong>2 veces</strong> (3×2=6)</li>
+                  <li>¿Cuánto sobró? <strong>1</strong> (va arriba)</li>
+                  <li>Resultado: <strong>2</strong>${fracHTML(1, 3, 'text-xs')}</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        `
+      },
+      {
+        category: 'Comparar Fracciones • 6 / 12',
+        render: () => `
+          <div class="space-y-3">
+            <div>
+              <h2 class="text-xl font-bold">5. ¿Cuál fracción es mayor? ⚖️</h2>
+              <p class="text-sm text-[var(--muted-foreground)]">Tres atajos para saber al instante cuál es más grande (&gt;) o más chica (&lt;).</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+              <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-3 space-y-1.5">
+                <div class="font-bold text-emerald-600">1. Mismo de abajo</div>
+                <div class="text-base font-bold text-center py-1">${fracHTML(3, 5, 'text-base')} &gt; ${fracHTML(2, 5, 'text-base')}</div>
+                <p class="text-[var(--muted-foreground)]">Gana el que tiene el número <strong>más grande arriba</strong>.</p>
+              </div>
+              <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-3 space-y-1.5">
+                <div class="font-bold text-sky-600">2. Mismo de arriba</div>
+                <div class="text-base font-bold text-center py-1">${fracHTML(1, 2, 'text-base')} &gt; ${fracHTML(1, 8, 'text-base')}</div>
+                <p class="text-[var(--muted-foreground)]">Gana el de abajo <strong>más chico</strong> (repartes entre menos personas).</p>
+              </div>
+              <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-3 space-y-1.5">
+                <div class="font-bold text-amber-600">3. Todo distinto</div>
+                <div class="text-base font-bold text-center py-1">${fracHTML(2, 3, 'text-base')} vs ${fracHTML(3, 5, 'text-base')}</div>
+                <p class="text-[var(--muted-foreground)]">Usa el <strong>truco de la cruz</strong> hacia arriba.</p>
+              </div>
+            </div>
+            <div class="bg-amber-500/10 border border-amber-500/25 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div>
+                <div class="font-bold text-amber-600 text-sm">✖️ Truco de la Cruz (de abajo hacia arriba)</div>
+                <div class="text-[var(--muted-foreground)]">Izquierda: <strong>5 × 2 = 10</strong> &nbsp;|&nbsp; Derecha: <strong>3 × 3 = 9</strong></div>
+              </div>
+              <div class="text-sm font-extrabold">Como 10 &gt; 9, entonces ${fracHTML(2, 3, 'text-sm')} &gt; ${fracHTML(3, 5, 'text-sm')}</div>
+            </div>
+          </div>
+        `
+      },
+      {
+        category: 'Suma y Resta • 7 / 12',
+        render: () => `
+          <div class="space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 class="text-xl font-bold">6. Suma y resta de fracciones 😊</h2>
+                <p class="text-sm text-[var(--muted-foreground)]">Elige el caso para ver el método:</p>
+              </div>
+              <div class="flex rounded-lg border border-[var(--border)] overflow-hidden text-xs font-bold">
+                <button onclick="opTab = 'homo'; renderSlide();" class="px-3 py-1.5 cursor-pointer ${opTab === 'homo' ? 'bg-emerald-500 text-white' : 'bg-[var(--content)]'}">Mismo abajo</button>
+                <button onclick="opTab = 'hetero'; renderSlide();" class="px-3 py-1.5 cursor-pointer ${opTab === 'hetero' ? 'bg-amber-500 text-white' : 'bg-[var(--content)]'}">Distinto abajo</button>
+              </div>
+            </div>
+
+            ${opTab === 'homo' ? `
+              <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+                <div class="text-xs font-bold text-emerald-600 uppercase">Homogéneas — ¡Súper fácil!</div>
+                <div class="flex flex-wrap items-center justify-center gap-2 text-xl font-bold py-2">
+                  ${fracHTML(2, 7, 'text-xl')} + ${fracHTML(3, 7, 'text-xl')} = ${fracHTML('2 + 3', 7, 'text-xl')} = <span class="text-emerald-500">${fracHTML(5, 7, 'text-xl')}</span>
+                </div>
+                <div class="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-xs text-center">
+                  Solo sumas o restas los números de <strong>arriba</strong>. El número de <strong>abajo NO se toca</strong>.
+                </div>
+              </div>
+            ` : `
+              <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+                <div class="text-xs font-bold text-amber-600 uppercase">Heterogéneas — Método de la "Carita Feliz" 😊</div>
+                <div class="flex flex-wrap items-center justify-center gap-2 text-lg font-bold py-1">
+                  ${fracHTML(1, 2, 'text-xl')} + ${fracHTML(1, 3, 'text-xl')} =
+                  ${fracHTML('(1×3) + (2×1)', '2 × 3', 'text-lg')} =
+                  ${fracHTML('3 + 2', 6, 'text-lg')} =
+                  <span class="text-amber-500">${fracHTML(5, 6, 'text-xl')}</span>
+                </div>
+                <div class="grid grid-cols-3 gap-2 text-xs text-center">
+                  <div class="p-2 rounded-lg bg-[var(--card)] border border-[var(--border)]"><strong>1. Cruz ↘</strong><br/>1 × 3 = 3</div>
+                  <div class="p-2 rounded-lg bg-[var(--card)] border border-[var(--border)]"><strong>2. Cruz ↗</strong><br/>2 × 1 = 2</div>
+                  <div class="p-2 rounded-lg bg-[var(--card)] border border-[var(--border)]"><strong>3. Sonrisa ⌣</strong><br/>2 × 3 = 6</div>
+                </div>
+              </div>
+            `}
+          </div>
+        `
+      },
+      {
+        category: 'Multiplicación y División • 8 / 12',
+        render: () => `
+          <div class="space-y-3">
+            <div>
+              <h2 class="text-xl font-bold">7. Multiplicación y división ⚡</h2>
+              <p class="text-sm text-[var(--muted-foreground)]">¡Son las más fáciles! Aquí no importa si los de abajo son distintos.</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-3.5 space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-sky-600 text-sm">➡️ Multiplicar: En línea recta</span>
+                </div>
+                <div class="text-center py-2 font-bold text-lg">
+                  ${fracHTML(2, 3, 'text-lg')} × ${fracHTML(4, 5, 'text-lg')} = ${fracHTML('2 × 4', '3 × 5', 'text-base')} = <span class="text-sky-500">${fracHTML(8, 15, 'text-lg')}</span>
+                </div>
+                <p class="text-xs text-[var(--muted-foreground)]">Arriba por arriba y abajo por abajo. Directo y sin vueltas.</p>
+              </div>
+              <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-3.5 space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-rose-600 text-sm">🍬 Dividir: En zigzag (cruzado)</span>
+                </div>
+                <div class="text-center py-2 font-bold text-lg">
+                  ${fracHTML(2, 3, 'text-lg')} ÷ ${fracHTML(4, 5, 'text-lg')} = ${fracHTML('2 × 5', '3 × 4', 'text-base')} = <span class="text-rose-500">${fracHTML(10, 12, 'text-lg')}</span>
+                </div>
+                <p class="text-xs text-[var(--muted-foreground)]">Multiplicas en cruz: <strong>2×5</strong> sube arriba; <strong>3×4</strong> baja abajo (o voltea la 2.ª y multiplica recto).</p>
+              </div>
+            </div>
+            <div class="p-2.5 rounded-xl bg-[var(--content)] border border-[var(--border)] text-xs text-center text-[var(--muted-foreground)]">
+              💡 <strong>Tip:</strong> ${fracHTML(10, 12, 'text-xs')} se puede simplificar dividiendo entre 2 arriba y abajo = <strong>${fracHTML(5, 6, 'text-xs')}</strong>.
+            </div>
+          </div>
+        `
+      },
+      {
+        category: 'Fracción de un Número • 9 / 12',
+        render: () => {
+          const step1 = fracNumTarget / fracNumBot;
+          const step2 = step1 * fracNumTop;
+          return `
+            <div class="space-y-3">
+              <div>
+                <h2 class="text-xl font-bold">8. Fracción de un número 🎯</h2>
+                <p class="text-sm text-[var(--muted-foreground)]">Receta infalible: <strong>Divide entre el de abajo, multiplica por el de arriba.</strong></p>
+              </div>
+              <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-3.5 space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div class="text-xs font-bold">Prueba otros ejemplos:</div>
+                  <div class="flex flex-wrap gap-1.5">
+                    <button onclick="fracNumTop=2; fracNumBot=5; fracNumTarget=20; renderSlide();" class="px-2.5 py-1 rounded-lg text-xs font-semibold border border-[var(--border)] bg-[var(--card)] hover:opacity-80 cursor-pointer">2/5 de 20</button>
+                    <button onclick="fracNumTop=3; fracNumBot=4; fracNumTarget=12; renderSlide();" class="px-2.5 py-1 rounded-lg text-xs font-semibold border border-[var(--border)] bg-[var(--card)] hover:opacity-80 cursor-pointer">3/4 de 12</button>
+                    <button onclick="fracNumTop=1; fracNumBot=3; fracNumTarget=24; renderSlide();" class="px-2.5 py-1 rounded-lg text-xs font-semibold border border-[var(--border)] bg-[var(--card)] hover:opacity-80 cursor-pointer">1/3 de 24</button>
+                  </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center text-center">
+                  <div class="p-2.5 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+                    <div class="text-xs text-[var(--muted-foreground)]">Pregunta</div>
+                    <div class="text-lg font-extrabold">${fracHTML(fracNumTop, fracNumBot, 'text-lg')} de ${fracNumTarget}</div>
+                  </div>
+                  <div class="p-2.5 rounded-lg bg-sky-500/10 border border-sky-500/25">
+                    <div class="text-xs font-bold text-sky-600">Paso 1 (÷ abajo)</div>
+                    <div class="text-sm font-bold">${fracNumTarget} ÷ ${fracNumBot} = <strong>${step1}</strong></div>
+                  </div>
+                  <div class="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25">
+                    <div class="text-xs font-bold text-emerald-600">Paso 2 (× arriba)</div>
+                    <div class="text-sm font-bold">${step1} × ${fracNumTop} = <strong class="text-lg">${step2}</strong></div>
+                  </div>
+                </div>
+              </div>
+              <p class="text-xs text-[var(--muted-foreground)]">Ejemplo real: Si un paquete trae ${fracNumTarget} dulces y regalas ${fracHTML(fracNumTop, fracNumBot, 'text-xs')}, regalaste <strong>${step2} dulces</strong>.</p>
+            </div>
+          `;
+        }
+      },
+      {
+        category: 'Decimales • 10 / 12',
+        render: () => `
+          <div class="space-y-3">
+            <div>
+              <h2 class="text-xl font-bold">9. Fracciones y números decimales 🔄</h2>
+              <p class="text-sm text-[var(--muted-foreground)]">Son dos idiomas para decir exactamente la misma cantidad.</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-3 space-y-1.5">
+                <div class="font-bold text-amber-600 text-sm">Fracción ➔ Decimal</div>
+                <p class="text-[var(--muted-foreground)]">Solo divide <strong>el de arriba ÷ el de abajo</strong>:</p>
+                <div class="p-2 rounded-lg bg-[var(--card)] border border-[var(--border)] font-bold text-center">
+                  ${fracHTML(3, 4, 'text-sm')} = 3 ÷ 4 = <span class="text-amber-500 text-sm">0.75</span>
+                </div>
+              </div>
+              <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-3 space-y-1.5">
+                <div class="font-bold text-emerald-600 text-sm">Decimal ➔ Fracción</div>
+                <p class="text-[var(--muted-foreground)]">Cuenta dígitos tras el punto (10, 100, 1000):</p>
+                <div class="p-2 rounded-lg bg-[var(--card)] border border-[var(--border)] font-bold text-center">
+                  0.25 = ${fracHTML(25, 100, 'text-sm')} = <span class="text-emerald-500">${fracHTML(1, 4, 'text-sm')}</span>
+                </div>
+              </div>
+            </div>
+            <div class="grid grid-cols-4 gap-2 text-center text-xs">
+              <div class="p-2 rounded-xl bg-[var(--content)] border border-[var(--border)]"><div class="font-bold">${fracHTML(1, 2, 'text-sm')}</div><div class="text-sky-500 font-bold mt-1">0.5</div></div>
+              <div class="p-2 rounded-xl bg-[var(--content)] border border-[var(--border)]"><div class="font-bold">${fracHTML(1, 4, 'text-sm')}</div><div class="text-sky-500 font-bold mt-1">0.25</div></div>
+              <div class="p-2 rounded-xl bg-[var(--content)] border border-[var(--border)]"><div class="font-bold">${fracHTML(3, 4, 'text-sm')}</div><div class="text-sky-500 font-bold mt-1">0.75</div></div>
+              <div class="p-2 rounded-xl bg-[var(--content)] border border-[var(--border)]"><div class="font-bold">${fracHTML(1, 10, 'text-sm')}</div><div class="text-sky-500 font-bold mt-1">0.1</div></div>
+            </div>
+          </div>
+        `
+      },
+      {
+        category: 'Resolución de Problemas • 11 / 12',
+        render: () => {
+          const steps = [
+            'Paso 1: Lee y subraya datos → Total: 24 dulces. Hermano: 1/3. Amiga: 1/4.',
+            'Paso 2: Hermano (1/3 de 24) → 24 ÷ 3 × 1 = 8 dulces.',
+            'Paso 3: Amiga (1/4 de 24) → 24 ÷ 4 × 1 = 6 dulces.',
+            'Paso 4: ¿Cuántos quedan? → 24 − (8 + 6) = 10 dulces. ¡Tiene sentido!'
+          ];
+          return `
+            <div class="space-y-3">
+              <div>
+                <h2 class="text-xl font-bold">10. Estrategias para resolver problemas 🧩</h2>
+                <p class="text-sm text-[var(--muted-foreground)]">Busca palabras clave y dibuja el problema antes de calcular.</p>
+              </div>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div class="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25"><strong>➕ Sumar</strong><br/>"en total", "juntaron"</div>
+                <div class="p-2 rounded-lg bg-rose-500/10 border border-rose-500/25"><strong>➖ Restar</strong><br/>"sobró", "le queda"</div>
+                <div class="p-2 rounded-lg bg-sky-500/10 border border-sky-500/25"><strong>✖️ Multiplicar</strong><br/>"1/3 <em>de</em> 24"</div>
+                <div class="p-2 rounded-lg bg-amber-500/10 border border-amber-500/25"><strong>➗ Dividir</strong><br/>"repartir igual"</div>
+              </div>
+              <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-3 space-y-2">
+                <div class="text-xs font-semibold">🍬 Ejemplo: "Ana compró 24 dulces, dio 1/3 a su hermano y 1/4 a su amiga. ¿Cuántos le quedan?"</div>
+                <div class="p-2.5 rounded-lg bg-[var(--card)] border border-[var(--border)] text-xs font-medium text-emerald-600 min-h-[38px] flex items-center">
+                  ${steps[problemStep]}
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-xs text-[var(--muted-foreground)]">Paso ${problemStep + 1} de 4</span>
+                  <button onclick="problemStep = (problemStep + 1) % 4; renderSlide();" class="px-3 py-1 rounded-lg bg-amber-500 text-white text-xs font-bold cursor-pointer hover:opacity-90">
+                    Ver siguiente paso →
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+      },
+      {
+        category: 'Reto Final • 12 / 12',
+        render: () => {
+          const questions = [
+            { id: 'q1', prompt: '¿Cuál es mayor: 1/2 o 1/6?', opts: ['1/2', '1/6'], ans: '1/2' },
+            { id: 'q2', prompt: '¿Cuánto es 2/7 + 3/7?', opts: ['5/7', '5/14'], ans: '5/7' },
+            { id: 'q3', prompt: '¿Cuánto es 1/4 de 20?', opts: ['5', '4'], ans: '5' }
+          ];
+          return `
+            <div class="space-y-3">
+              <div>
+                <h2 class="text-xl font-bold">🏆 Mini reto rápido + Reglas de oro</h2>
+                <p class="text-sm text-[var(--muted-foreground)]">Comprueba lo que aprendiste haciendo clic en la respuesta correcta:</p>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                ${questions.map(q => {
+                  const chosen = quizAnswers[q.id];
+                  return `
+                    <div class="bg-[var(--content)] border border-[var(--border)] rounded-xl p-3 space-y-2 text-xs">
+                      <div class="font-bold">${q.prompt}</div>
+                      <div class="flex gap-1.5">
+                        ${q.opts.map(opt => {
+                          let cls = 'bg-[var(--card)] border-[var(--border)]';
+                          if (chosen === opt) {
+                            cls = opt === q.ans ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-rose-500 text-white border-rose-500';
+                          }
+                          return `<button onclick="quizAnswers['${q.id}']='${opt}'; renderSlide();" class="flex-1 py-1.5 rounded-lg border font-bold cursor-pointer ${cls}">${opt}</button>`;
+                        }).join('')}
+                      </div>
+                      ${chosen ? `<div class="font-semibold ${chosen === q.ans ? 'text-emerald-600' : 'text-rose-500'}">${chosen === q.ans ? '✅ ¡Exacto!' : '💡 Intenta la otra'}</div>` : ''}
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+              <div class="p-3 rounded-xl bg-[var(--content)] border border-[var(--border)] text-xs grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                <div><strong>Sumar/Restar:</strong><br/>Carita feliz 😊</div>
+                <div><strong>Multiplicar:</strong><br/>Línea recta ➡️</div>
+                <div><strong>Dividir:</strong><br/>Zigzag 🍬</div>
+                <div><strong>Fracción de #:</strong><br/>÷ abajo, × arriba</div>
+              </div>
+            </div>
+          `;
+        }
+      }
+    ];
+
+    function renderDots() {
+      const dotsEl = document.getElementById('slide-dots');
+      dotsEl.innerHTML = slides.map((_, idx) => `
+        <button onclick="goToSlide(${idx})" title="Diapositiva ${idx + 1}"
+          class="h-2 rounded-full transition-all cursor-pointer ${idx === currentSlide ? 'w-5 bg-[var(--primary)]' : 'w-2 bg-[var(--border)] hover:bg-[var(--muted-foreground)]'}">
+        </button>
+      `).join('');
+    }
+
+    function renderSlide() {
+      const stage = document.getElementById('slide-stage');
+      const cat = document.getElementById('slide-category');
+      const slide = slides[currentSlide];
+      cat.textContent = slide.category;
+      stage.classList.remove('slide-fade');
+      void stage.offsetWidth;
+      stage.classList.add('slide-fade');
+      stage.innerHTML = slide.render();
+      document.getElementById('btn-prev').disabled = currentSlide === 0;
+      document.getElementById('btn-next').disabled = currentSlide === slides.length - 1;
+      document.getElementById('btn-next').textContent = currentSlide === slides.length - 1 ? '¡Terminado! 🎉' : 'Siguiente →';
+      renderDots();
+    }
+
+    function changeSlide(delta) {
+      const next = currentSlide + delta;
+      if (next >= 0 && next < slides.length) {
+        currentSlide = next;
+        renderSlide();
+      }
+    }
+
+    function goToSlide(idx) {
+      currentSlide = idx;
+      renderSlide();
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') changeSlide(1);
+      if (e.key === 'ArrowLeft') changeSlide(-1);
+    });
+
+    renderSlide();
+  </script>
+</body>
+</html>
